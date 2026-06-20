@@ -25,6 +25,14 @@ export default function Home() {
 
   const recognitionRef = useRef<any>(null);
 
+  // CRITICAL FIX: Jab bhi language change ho, chalne wali speech ko immediately cancel karo
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    }
+  }, [language]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const anyWindow = window as any;
@@ -36,7 +44,9 @@ export default function Home() {
       const rec = new SpeechRecognition();
       rec.continuous = true;
       rec.interimResults = true;
-      rec.lang = "en-US";
+      
+      // CRITICAL FIX: Audio listening language switch dynamically
+      rec.lang = language === "urdu" ? "ur-PK" : "en-US";
 
       let finalTranscript = "";
       let silenceTimer: any = null;
@@ -111,18 +121,22 @@ export default function Home() {
       setChatHistory((prev) => [...prev, { role: "assistant", content: completeText }]);
 
       if (typeof window !== "undefined" && window.speechSynthesis) {
+        // CRITICAL FIX: Speak logic se pehle state clean up aur fresh execution
         window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance();
         utterance.text = String(completeText);
-        utterance.lang = language === "urdu" ? "hi-IN" : "en-US";
+        
+        // CRITICAL FIX: Target real Urdu-Pakistan instead of hi-IN Hindi
+        utterance.lang = language === "urdu" ? "ur-PK" : "en-US";
 
         const getVoice = () => {
           const voices = window.speechSynthesis.getVoices();
           if (language === "urdu") {
-            return voices.find((v) => 
-              v.lang.includes("hi-IN") || v.lang.includes("en-IN") || v.name.toLowerCase().includes("hindi")
-            ) || voices.find((v) => v.lang.startsWith("hi")) || null;
+            // Priority 1: Proper Urdu Voice, Priority 2: Google/Default Hindi/Urdu localization fallback
+            return voices.find((v) => v.lang.includes("ur-PK") || v.name.toLowerCase().includes("urdu")) 
+              || voices.find((v) => v.lang.includes("hi-IN") || v.lang.startsWith("ur") || v.lang.startsWith("hi")) 
+              || null;
           } else {
             return voices.find((v) => 
               v.lang.includes("en-US") && 
@@ -133,6 +147,9 @@ export default function Home() {
             ) || voices.find((v) => v.lang.startsWith("en")) || null;
           }
         };
+
+        // Urdu thodi natural lagay is liye speed thodi kam (0.95), English 1.0 standard
+        utterance.rate = language === "urdu" ? 0.95 : 1.0;
 
         utterance.onstart = () => setIsSpeaking(true);
         utterance.onend = () => setIsSpeaking(false);
@@ -179,7 +196,6 @@ export default function Home() {
       {/* Main Container Core */}
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-md z-10 my-auto">
         <div className="text-center mb-10">
-          {/* Brand Identity with Original Clean Font Style */}
           <h1 className="text-5xl sm:text-6xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-b from-white via-purple-200 to-purple-400 drop-shadow-sm select-none">
             JEEUTY
           </h1>
@@ -204,7 +220,6 @@ export default function Home() {
             </span>
           </button>
 
-          {/* Organic Glow/Pulse Combination */}
           {isListening ? (
             <div className="absolute w-40 h-40 sm:w-44 sm:h-44 rounded-full border border-red-500/30 opacity-40 animate-ping" />
           ) : (
@@ -235,7 +250,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* Real-time Human Styled Transcript Bubble */}
         {transcript && (
           <div className="mt-8 w-full text-center bg-purple-950/20 border border-purple-900/20 px-5 py-3 rounded-xl text-xs text-purple-300 leading-relaxed max-w-sm overflow-hidden text-ellipsis whitespace-nowrap shadow-md">
             <span className="text-purple-400 font-bold uppercase tracking-wider mr-1.5">You:</span> "{transcript}"
